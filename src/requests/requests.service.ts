@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { PrismaServices } from '../../prisma/prisma.service';
+import { NotificationService } from '../notifications/notifications.service';
 
 @Injectable()
 export class RequestsService {
-  constructor(private prisma: PrismaServices) {}
+  constructor(
+    private prisma: PrismaServices,
+    private notificationsService: NotificationService,
+  ) {}
 
   async create(requesterId: number, dto: CreateRequestDto) {
     // Step 1 — Save the blood request to DB
@@ -30,8 +34,28 @@ export class RequestsService {
       10, // radius in km
     );
 
+    if (matchedDonors.length > 0) {
+      await this.prisma.donorNotification.createMany({
+        data: matchedDonors.map((donor) => ({
+          requestId: request.id,
+          donorId: donor.id,
+          status: 'notified',
+          distance: parseFloat(donor.distance_km),
+        })),
+      });
+
+      // Update donor count on request
+      await this.prisma.bloodRequest.update({
+        where: { id: request.id },
+        data: { donorsNotified: matchedDonors.length },
+      });
+
+      // Send emails to all matched donors in parallel
+      await this.notificationsService.notifyAllDonors(matchedDonors, request);
+    }
+
     return {
-      request,
+      request: { ...request, donorsNotified: matchedDonors.length },
       matchedDonors: matchedDonors.length,
       donors: matchedDonors,
     };
