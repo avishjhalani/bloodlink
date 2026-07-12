@@ -44,7 +44,7 @@ export class NotificationService{
 
               <p>If you are available to donate, please reply to this email or contact the hospital directly.</p>
               <p style="color: #6b7280; font-size: 14px;">
-                You received this because you are a registered O+ donor within 10km of this request.
+                You received this because you are a registered donor within 10km of this request.
               </p>
             </div>
             
