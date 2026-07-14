@@ -7,22 +7,31 @@ export class DonorsService {
 
   async confirmDonation(requestId: number, donorId: number) {
     // Find the notification record
-    const notification = await this.prisma.donorNotification.findFirst({
+    let notification = await this.prisma.donorNotification.findFirst({
       where: { requestId, donorId }
     });
 
     if (!notification) {
-      throw new NotFoundException('Notification not found');
+      // Create a notification record automatically for voluntary donations
+      notification = await this.prisma.donorNotification.create({
+        data: {
+          requestId,
+          donorId,
+          status: 'confirmed',
+          distance: 0,
+          respondedAt: new Date(),
+        }
+      });
+    } else {
+      // Update existing notification status to confirmed
+      await this.prisma.donorNotification.update({
+        where: { id: notification.id },
+        data: {
+          status: 'confirmed',
+          respondedAt: new Date(),
+        }
+      });
     }
-
-    // Update notification status to confirmed
-    await this.prisma.donorNotification.update({
-      where: { id: notification.id },
-      data: {
-        status: 'confirmed',
-        respondedAt: new Date(),
-      }
-    });
 
     // Update confirmed count on request
     await this.prisma.bloodRequest.update({

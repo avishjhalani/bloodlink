@@ -196,6 +196,9 @@ export class RequestsService {
         requester: {
           select: { name: true, phone: true },
         },
+        notifications: {
+          where: { donorId: userId },
+        },
       },
     });
   }
