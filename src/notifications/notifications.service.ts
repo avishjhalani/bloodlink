@@ -1,31 +1,39 @@
 import { Injectable, Logger } from "@nestjs/common";
-import * as nodemailer from 'nodemailer';
+import axios from 'axios';
 
 @Injectable()
+export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
 
-export class NotificationService{
-    private readonly logger = new Logger(NotificationService.name);
-    private transporter;
-    constructor(){
-        this.transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 587,
-            secure: false, // true for port 465, false for port 587 (STARTTLS)
-            auth: {
-                user: process.env.MAIL_USER,
-                pass: process.env.MAIL_PASS,
-            },
-        });
+  async notifyDonor(donor: any, request: any): Promise<void> {
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    const mailFrom = process.env.MAIL_FROM || 'BloodLink <bloodlinkservice@gmail.com>';
+    
+    if (!brevoApiKey) {
+      this.logger.error('BREVO_API_KEY environment variable is not defined.');
+      return;
     }
 
-    async notifyDonor(donor:any , request :any): Promise<void>{
-        try{
-            await this.transporter.sendMail({
-                from: process.env.MAIL_FROM,
-                to: donor.email,
-                subject : `🚨 Urgent: ${request.bloodType} blood needed ${donor.distance_km}km away`,
-                html :`
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    // Parse sender name and email from "Name <email@host.com>" format
+    let senderName = 'BloodLink';
+    let senderEmail = 'bloodlinkservice@gmail.com';
+    const fromMatch = mailFrom.match(/^(.*?)\s*<(.*?)>$/);
+    if (fromMatch) {
+      senderName = fromMatch[1].trim();
+      senderEmail = fromMatch[2].trim();
+    } else if (mailFrom.includes('@')) {
+      senderEmail = mailFrom.trim();
+    }
+
+    try {
+      const response = await axios.post(
+        'https://api.brevo.com/v3/smtp/email',
+        {
+          sender: { name: senderName, email: senderEmail },
+          to: [{ email: donor.email, name: donor.name }],
+          subject: `🚨 Urgent: ${request.bloodType} blood needed ${donor.distance_km}km away`,
+          htmlContent: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: #dc2626; padding: 20px; text-align: center;">
               <h1 style="color: white; margin: 0;">🩸 BloodLink</h1>
               <p style="color: #fca5a5; margin: 5px 0;">Urgent Blood Request</p>
@@ -62,18 +70,28 @@ export class NotificationService{
               </p>
             </div>
           </div>
-            `,
-            });
-            this.logger.log(`Email sent to ${donor.name}(${donor.email})`);
-        }catch(error){
-            this.logger.error(`Failed to notify ${donor.email} : ${error.message}`);
+          `,
+        },
+        {
+          headers: {
+            'api-key': brevoApiKey,
+            'Content-Type': 'application/json',
+          },
         }
-    }
+      );
 
-    async notifyAllDonors(donors:any[], request:any): Promise<void>{
-        const promise = donors.map(donor =>this.notifyDonor(donor,request));
-        await Promise.allSettled(promise);
-        this.logger.log(`Notified ${donors.length} donors for request ${request.id}`);
+      this.logger.log(`Email successfully sent to ${donor.name} (${donor.email}) via Brevo HTTP API (Message ID: ${response.data.messageId || 'N/A'})`);
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || error.message;
+      this.logger.error(`Failed to notify ${donor.email} via Brevo HTTP API: ${errorMsg}`);
+      throw error;
     }
+  }
+
+  async notifyAllDonors(donors: any[], request: any): Promise<void> {
+    const promise = donors.map(donor => this.notifyDonor(donor, request));
+    await Promise.allSettled(promise);
+    this.logger.log(`Notified ${donors.length} donors for request ${request.id}`);
+  }
 }
 
