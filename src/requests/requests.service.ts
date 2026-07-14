@@ -1,13 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { PrismaServices } from '../../prisma/prisma.service';
 import { NotificationService } from '../notifications/notifications.service';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Injectable()
 export class RequestsService {
+  private readonly logger = new Logger(RequestsService.name);
+
   constructor(
     private prisma: PrismaServices,
     private notificationsService: NotificationService,
+    @InjectQueue('notifications') private readonly notificationsQueue: Queue,
   ) {}
 
   async create(requesterId: number, dto: CreateRequestDto) {
@@ -50,8 +55,29 @@ export class RequestsService {
         data: { donorsNotified: matchedDonors.length },
       });
 
-      // Send emails to all matched donors in parallel
-      await this.notificationsService.notifyAllDonors(matchedDonors, request);
+      // Send emails to all matched donors in parallel (via Redis Bull Queue)
+      try {
+        const jobs = matchedDonors.map((donor) =>
+          this.notificationsQueue.add(
+            'send-email',
+            { donor, request },
+            {
+              attempts: 3, // retry up to 3 times
+              backoff: {
+                type: 'exponential',
+                delay: 10000, // wait 10s before retry, incrementing exponentially
+              },
+              removeOnComplete: true, // clean up completed jobs from Redis
+              removeOnFail: false, // keep failed jobs for investigation
+            }
+          )
+        );
+        await Promise.all(jobs);
+        this.logger.log(`Queued ${matchedDonors.length} email notification jobs in Redis.`);
+      } catch (err: any) {
+        this.logger.warn(`Redis queue error: ${err.message}. Falling back to in-memory non-blocking dispatch.`);
+        this.notificationsService.notifyAllDonors(matchedDonors, request);
+      }
     }
 
     return {

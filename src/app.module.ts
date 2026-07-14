@@ -7,9 +7,19 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { DonorsModule } from './donors/donors.module';
 import { PrismaServices } from '../prisma/prisma.service';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { BullModule } from '@nestjs/bull';
 
 @Module({
-  imports: [AuthModule, RequestsModule, NotificationsModule, DonorsModule, AnalyticsModule],
+  imports: [
+    BullModule.forRoot({
+      url: process.env.REDIS_URL || 'redis://localhost:6379',
+    }),
+    AuthModule,
+    RequestsModule,
+    NotificationsModule,
+    DonorsModule,
+    AnalyticsModule,
+  ],
   controllers: [AppController],
   providers: [AppService, PrismaServices],
 })
