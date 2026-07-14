@@ -131,9 +131,66 @@ export class RequestsService {
     });
   }
 
-  async findActive() {
+  async findActive(userId: number) {
     return this.prisma.bloodRequest.findMany({
-      where: { status: 'active' },
+      where: {
+        status: 'active',
+        NOT: { requesterId: userId },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        requester: {
+          select: { name: true, phone: true },
+        },
+      },
+    });
+  }
+
+  async findCompatible(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) return [];
+
+    const donorType = user.bloodType.toUpperCase();
+    let compatibleRecipientTypes: string[] = [];
+
+    switch (donorType) {
+      case 'O-':
+        compatibleRecipientTypes = ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+        break;
+      case 'O+':
+        compatibleRecipientTypes = ['O+', 'A+', 'B+', 'AB+'];
+        break;
+      case 'A-':
+        compatibleRecipientTypes = ['A-', 'A+', 'AB-', 'AB+'];
+        break;
+      case 'A+':
+        compatibleRecipientTypes = ['A+', 'AB+'];
+        break;
+      case 'B-':
+        compatibleRecipientTypes = ['B-', 'B+', 'AB-', 'AB+'];
+        break;
+      case 'B+':
+        compatibleRecipientTypes = ['B+', 'AB+'];
+        break;
+      case 'AB-':
+        compatibleRecipientTypes = ['AB-', 'AB+'];
+        break;
+      case 'AB+':
+        compatibleRecipientTypes = ['AB+'];
+        break;
+      default:
+        compatibleRecipientTypes = [donorType];
+    }
+
+    return this.prisma.bloodRequest.findMany({
+      where: {
+        status: 'active',
+        NOT: { requesterId: userId },
+        bloodType: { in: compatibleRecipientTypes },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         requester: {

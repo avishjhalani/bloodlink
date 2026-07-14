@@ -18,8 +18,13 @@ export class RequestsController {
         return this.requestService.findAll(req['user'].sub);
     }
     @Get('active')
-    findActive(){
-        return this.requestService.findActive();
+    findActive(@Req() req: any){
+        return this.requestService.findActive(req['user'].sub);
+    }
+
+    @Get('compatible')
+    findCompatible(@Req() req: any){
+        return this.requestService.findCompatible(req['user'].sub);
     }
 
     @Patch(':id/fulfill')
