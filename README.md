@@ -35,18 +35,18 @@ npm install
 Create a `.env` file in the root directory:
 ```env
 # Database connection (Prisma PostgreSQL URL)
-DATABASE_URL="postgresql://<user>:<password>@<host>:<port>/neondb?sslmode=require"
+DATABASE_URL="your_db_url"
 
 # JWT configuration
 JWT_SECRET=your_jwt_private_secret_key
 
 # Nodemailer SMTP configurations (e.g. Gmail)
-MAIL_USER=bloodlinkservice@gmail.com
-MAIL_PASS=your_gmail_app_password
-MAIL_FROM=BloodLink <bloodlinkservice@gmail.com>
+MAIL_USER=mail_url
+MAIL_PASS=mail_pass
+MAIL_FROM=mail_name<mail_url>
 
 # Frontend origin URL for CORS cookie-sharing
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=your_frontend_url
 ```
 
 ### 3. Push Database Schema to Neon
